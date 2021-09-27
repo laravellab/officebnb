@@ -23,4 +23,6 @@ Route::get('/tags', \App\Http\Controllers\TagController::class);
 
 // Offices...
 Route::get('/offices', [\App\Http\Controllers\OfficeController::class, 'index']);
+Route::post('/offices', [\App\Http\Controllers\OfficeController::class, 'store'])
+    ->middleware(['auth:sanctum', 'verified']);
 Route::get('/offices/{office}', [\App\Http\Controllers\OfficeController::class, 'show']);

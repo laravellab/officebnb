@@ -45,7 +45,7 @@ class OfficeTest extends TestCase
 
 
     /** @test */
-    public function itListsOfficeByHostId()
+    public function itFiltersByUserId()
     {
         Office::factory(3)->create();
 
@@ -54,7 +54,7 @@ class OfficeTest extends TestCase
 
         $office = Office::factory()->for($host)->create();
 
-        $response = $this->get('/api/offices?host_id=' . $host->id);
+        $response = $this->get('/api/offices?user_id=' . $host->id);
 
         $response->assertOk()->assertJsonCount(1, 'data');
 
@@ -64,7 +64,7 @@ class OfficeTest extends TestCase
 
 
     /** @test */
-    public function itFiltersByUserId()
+    public function itFiltersByVisitorId()
     {
         Office::factory(3)->create();
 
@@ -77,7 +77,7 @@ class OfficeTest extends TestCase
         Reservation::factory()->for(Office::factory())->create();
         Reservation::factory()->for($office)->for($user)->create();
 
-        $response = $this->get('/api/offices?user_id=' . $user->id);
+        $response = $this->get('/api/offices?visitor_id=' . $user->id);
 
 
         $response->assertOk()->assertJsonCount(1, 'data');
@@ -177,7 +177,7 @@ class OfficeTest extends TestCase
 
         $image = Image::factory()->create([
             'resource_id' => $office->id,
-            'resource_type' => \get_class($office),
+            'resource_type' => 'office',
         ]);
 
         $office->tags()->attach($tag);
@@ -196,5 +196,73 @@ class OfficeTest extends TestCase
         $this->assertIsArray($response->json('data')['images']);
         $this->assertCount(1, $response->json('data')['images']);
         $this->assertEquals($user->id, $response->json('data')['user']['id']);
+    }
+
+
+    /** @test */
+    public function itCreatesAnOffice()
+    {
+        $user = User::factory()->createQuietly();
+
+        $tag1 = Tag::factory()->create();
+        $tag2 = Tag::factory()->create();
+
+
+
+        $response = $this->actingAs($user, 'sanctum')->post('/api/offices', [
+            'title' => 'Office in Arkansas',
+            'description' => 'Description',
+            'lat' => '38.720661384644046',
+            'lng' => '-9.16044783453807',
+            'address_line1' => 'address',
+            'price_per_day' => 10_000,
+            'monthly_discount' => 5,
+            'tags' => [
+                $tag1->id, $tag2->id
+            ]
+
+        ]);
+
+
+        $response->assertCreated()
+            ->assertJsonCount(2, 'data.tags')
+            ->assertJsonPath('data.user.id', $user->id)
+            ->assertJsonPath('data.title', 'Office in Arkansas')
+            ->assertJsonPath('data.approval_status', Office::APPROVAL_PENDING);
+
+        $this->assertDatabaseHas('offices', [
+            'title' => 'Office in Arkansas'
+        ]);
+    }
+
+
+
+
+
+    /** @test */
+    public function itDoesntAllowCreatingIfScopeIsNotProvided()
+    {
+        $user = User::factory()->createQuietly();
+
+        $tag1 = Tag::factory()->create();
+        $tag2 = Tag::factory()->create();
+
+
+        $user->createToken('test', ['office.create']);
+
+
+
+        $response = $this->actingAs($user, 'sanctum')->post('/api/offices');
+
+
+        $response->assertCreated()
+            ->assertJsonCount(2, 'data.tags')
+            ->assertJsonPath('data.user.id', $user->id)
+            ->assertJsonPath('data.title', 'Office in Arkansas')
+            ->assertJsonPath('data.approval_status', Office::APPROVAL_PENDING);
+
+        $this->assertDatabaseHas('offices', [
+            'title' => 'Office in Arkansas'
+        ]);
     }
 }
